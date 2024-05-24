@@ -5,6 +5,7 @@ use core::panic;
 use proc_macro::TokenStream;
 use proc_macro2::TokenTree;
 use quote::quote;
+use syn::spanned::Spanned;
 
 
 fn ty_inner_ty<'a> (wrapper: &str, ty: &'a syn::Type) -> Option<&'a syn::Type>{
@@ -41,7 +42,16 @@ fn extended_method (f: &syn::Field) -> Option<(bool, proc_macro2::TokenStream)>{
                 syn::Meta::List(list) => {
                     let mut tokens = list.tokens.clone().into_iter();
                     match tokens.next().unwrap() {
-                        TokenTree::Ident(ref i) => assert_eq!(i.to_string(), "each"),
+                        TokenTree::Ident(ref i) => {
+                            if i.to_string() != "each" {
+                                return Some((
+                                    false,
+                                    syn::Error::new(list.span(), "expected `builder(each = \"...\")`").to_compile_error()
+                                ));
+                            }
+
+                        },
+
                         tt => panic!("Unexpected token: {:?}", tt),
                     }
                     match tokens.next().unwrap() {
@@ -118,7 +128,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
         let set_method = if let Some(inner_ty) = ty_inner_ty("Option", ty)  {
             quote!{
                 pub fn #name(&mut self, #name: #inner_ty) -> &mut Self{
-                    self.#name = Some(#name);
+                    self.#name = std::option::Option::Some(#name);
                     self
                 }
             }
@@ -132,7 +142,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
         } else {
             quote!{
                 pub fn #name(&mut self, #name: #ty) -> &mut Self{
-                    self.#name = Some(#name);
+                    self.#name = std::option::Option::Some(#name);
                     self
                 }
             }
@@ -167,11 +177,11 @@ pub fn derive(input: TokenStream) -> TokenStream {
         let name = &f.ident;
         if builder_of(f.clone()) {
             quote!{
-                #name: Vec::new()
+                #name: std::vec::Vec::new()
             }
         } else {
             quote!{
-                #name: None
+                #name: std::option::Option::None
             }
         }
 
@@ -189,7 +199,7 @@ pub fn derive(input: TokenStream) -> TokenStream {
         }
         impl #builder_ident{
             #(#methods)*
-            pub fn build(&self) -> Result<#name, Box<dyn std::error::Error>>{
+            pub fn build(&self) -> std::result::Result<#name, std::boxed::Box<dyn std::error::Error>>{
                 Ok(#name{
                     #(#build_fields,)*
                 })

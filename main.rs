@@ -1,53 +1,30 @@
-// The std::process::Command builder handles args in a way that is potentially
-// more convenient than passing a full vector of args to the builder all at
-// once.
+// Does your macro still work if some of the standard library prelude item names
+// mean something different in the caller's code?
 //
-// Look for a field attribute #[builder(each = "...")] on each field. The
-// generated code may assume that fields with this attribute have the type Vec
-// and should use the word given in the string literal as the name for the
-// corresponding builder method which accepts one vector element at a time.
+// It may seem unreasonable to consider this case, but it does arise in
+// practice. Most commonly for Result, where crates sometimes use a Result type
+// alias with a single type parameter which assumes their crate's error type.
+// Such a type alias would break macro-generated code that expects Result to
+// have two type parameters. As another example, Hyper 0.10 used to define
+// hyper::Ok as a re-export of hyper::status::StatusCode::Ok which is totally
+// different from Result::Ok. This caused problems in code doing `use hyper::*`
+// together with macro-generated code referring to Ok.
 //
-// In order for the compiler to know that these builder attributes are
-// associated with your macro, they must be declared at the entry point of the
-// derive macro. Otherwise the compiler will report them as unrecognized
-// attributes and refuse to compile the caller's code.
-//
-//     #[proc_macro_derive(Builder, attributes(builder))]
-//
-// These are called inert attributes. The word "inert" indicates that these
-// attributes do not correspond to a macro invocation on their own; they are
-// simply looked at by other macro invocations.
-//
-// If the new one-at-a-time builder method is given the same name as the field,
-// avoid generating an all-at-once builder method for that field because the
-// names would conflict.
-//
-//
-// Resources:
-//
-//   - Relevant syntax tree type:
-//     https://docs.rs/syn/2.0/syn/struct.Attribute.html
+// Generally all macros (procedural as well as macro_rules) designed to be used
+// by other people should refer to every single thing in their expanded code
+// through an absolute path, such as std::result::Result.
 
 use derive_builder::Builder;
+
+type Option = ();
+type Some = ();
+type None = ();
+type Result = ();
+type Box = ();
 
 #[derive(Builder)]
 pub struct Command {
     executable: String,
-    #[builder(each = "arg")]
-    args: Vec<String>,
-    #[builder(each = "env")]
-    env: Vec<String>,
-    current_dir: Option<String>,
 }
 
-fn main() {
-    let command = Command::builder()
-        .executable("cargo".to_owned())
-        .arg("build".to_owned())
-        .arg("--release".to_owned())
-        .build()
-        .unwrap();
-
-    assert_eq!(command.executable, "cargo");
-    assert_eq!(command.args, vec!["build", "--release"]);
-}
+fn main() {}
